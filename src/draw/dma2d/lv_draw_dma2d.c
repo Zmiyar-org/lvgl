@@ -13,6 +13,9 @@
 #include "../sw/lv_draw_sw.h"
 #include "../../misc/lv_area_private.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #if !LV_DRAW_DMA2D_ASYNC && LV_USE_DRAW_DMA2D_INTERRUPT
     #warning LV_USE_DRAW_DMA2D_INTERRUPT is 1 but has no effect because LV_USE_OS is LV_OS_NONE
 #endif
@@ -346,9 +349,10 @@ static int32_t dispatch_cb(lv_draw_unit_t * draw_unit, lv_layer_t * layer)
         /*Return immediately if it's busy with draw task*/
         return 0;
 #else
-        if(!check_transfer_completion()) {
-            return LV_DRAW_UNIT_IDLE;
-        }
+//        if(!check_transfer_completion()) {
+//            return LV_DRAW_UNIT_IDLE;
+//        }
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         post_transfer_tasks(draw_dma2d_unit);
 #endif
     }
