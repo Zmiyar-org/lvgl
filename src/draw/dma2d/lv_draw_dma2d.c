@@ -458,7 +458,7 @@ static void thread_cb(void * arg)
 #endif
 
 #if !LV_DRAW_DMA2D_ASYNC
-static bool check_transfer_completion(void)
+[[maybe_unused]] static bool check_transfer_completion(void)
 {
     return !(DMA2D->CR & DMA2D_CR_START);
 }
