@@ -45,6 +45,8 @@ static lv_obj_t * find_chid(lv_obj_t * obj, lv_obj_t * start_child, find_mode_t 
 static lv_obj_t * find_first_focusable(lv_obj_t * obj);
 static lv_obj_t * find_last_focusable(lv_obj_t * obj);
 static bool obj_is_focusable(lv_obj_t * obj);
+static bool key_is_nav(uint32_t key);
+static void fallback_group_focus_by_key(lv_obj_t * obj, uint32_t key);
 static int32_t get_x_center(lv_obj_t * obj);
 static int32_t get_y_center(lv_obj_t * obj);
 
@@ -135,13 +137,19 @@ static void gridnav_event_cb(lv_event_t * e)
     lv_event_code_t code = lv_event_get_code(e);
 
     if(code == LV_EVENT_KEY) {
+        uint32_t key = lv_event_get_key(e);
         uint32_t child_cnt = lv_obj_get_child_count(obj);
-        if(child_cnt == 0) return;
+        if(child_cnt == 0) {
+            fallback_group_focus_by_key(obj, key);
+            return;
+        }
 
         if(dsc->focused_obj == NULL) dsc->focused_obj = find_first_focusable(obj);
-        if(dsc->focused_obj == NULL) return;
+        if(dsc->focused_obj == NULL) {
+            fallback_group_focus_by_key(obj, key);
+            return;
+        }
 
-        uint32_t key = lv_event_get_key(e);
         lv_obj_t * guess = NULL;
 
         if(key == LV_KEY_RIGHT && !(dsc->ctrl & LV_GRIDNAV_CTRL_VERTICAL_MOVE_ONLY)) {
@@ -385,6 +393,30 @@ static bool obj_is_focusable(lv_obj_t * obj)
     if(lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) return false;
     if(lv_obj_has_flag(obj, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE)) return true;
     else return false;
+}
+
+static bool key_is_nav(uint32_t key)
+{
+    return key == LV_KEY_RIGHT || key == LV_KEY_LEFT || key == LV_KEY_UP || key == LV_KEY_DOWN;
+}
+
+static void fallback_group_focus_by_key(lv_obj_t * obj, uint32_t key)
+{
+    if(!key_is_nav(key)) {
+        return;
+    }
+
+    lv_group_t * group = lv_obj_get_group(obj);
+    if(group == NULL) {
+        return;
+    }
+
+    if(key == LV_KEY_RIGHT || key == LV_KEY_DOWN) {
+        lv_group_focus_next(group);
+    }
+    else {
+        lv_group_focus_prev(group);
+    }
 }
 
 static int32_t get_x_center(lv_obj_t * obj)
