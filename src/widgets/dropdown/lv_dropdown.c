@@ -518,6 +518,12 @@ void lv_dropdown_open(lv_obj_t * dropdown_obj)
 
     lv_dropdown_t * dropdown = (lv_dropdown_t *)dropdown_obj;
 
+    /* For keypad-driven UIs keep focus navigation inside the opened dropdown list. */
+    lv_group_t * g = lv_obj_get_group(dropdown_obj);
+    if(g) {
+        lv_group_set_editing(g, true);
+    }
+
     lv_obj_add_state(dropdown_obj, LV_STATE_CHECKED);
     lv_obj_set_parent(dropdown->list, lv_obj_get_screen(dropdown_obj));
     lv_obj_move_to_index(dropdown->list, -1);
@@ -616,6 +622,11 @@ void lv_dropdown_close(lv_obj_t * obj)
 
     lv_obj_remove_state(obj, LV_STATE_CHECKED);
     lv_dropdown_t * dropdown = (lv_dropdown_t *)obj;
+
+    lv_group_t * g = lv_obj_get_group(obj);
+    if(g) {
+        lv_group_set_editing(g, false);
+    }
 
     dropdown->pr_opt_id = LV_DROPDOWN_PR_NONE;
     lv_obj_add_flag(dropdown->list, LV_OBJ_FLAG_HIDDEN);
@@ -751,6 +762,12 @@ static void lv_dropdown_event(const lv_obj_class_t * class_p, lv_event_t * e)
         lv_dropdown_close(obj);
     }
     else if(code == LV_EVENT_RELEASED) {
+        /* For keypad input, ENTER is already handled in LV_EVENT_KEY.
+         * Handling RELEASED as well causes immediate open->close toggle. */
+        lv_indev_t * indev = lv_indev_active();
+        if(indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD) {
+            return;
+        }
         res = btn_release_handler(obj);
         if(res != LV_RESULT_OK) return;
     }
@@ -767,28 +784,38 @@ static void lv_dropdown_event(const lv_obj_class_t * class_p, lv_event_t * e)
     }
     else if(code == LV_EVENT_KEY) {
         uint32_t c = lv_event_get_key(e);
+        lv_indev_t * indev = lv_indev_active();
+        lv_indev_type_t indev_type = indev ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
         if(c == LV_KEY_RIGHT || c == LV_KEY_DOWN) {
-            if(!lv_dropdown_is_open(obj)) {
-                lv_dropdown_open(obj);
+            if(lv_dropdown_is_open(obj)) {
+                if(dropdown->sel_opt_id + 1 < dropdown->option_cnt) {
+                    dropdown->sel_opt_id++;
+                    position_to_selected(obj, LV_ANIM_ON);
+                }
+                if(indev_type == LV_INDEV_TYPE_KEYPAD) lv_event_stop_bubbling(e);
             }
-            else if(dropdown->sel_opt_id + 1 < dropdown->option_cnt) {
-                dropdown->sel_opt_id++;
-                position_to_selected(obj, LV_ANIM_ON);
+            else if(indev_type != LV_INDEV_TYPE_KEYPAD) {
+                lv_dropdown_open(obj);
             }
         }
         else if(c == LV_KEY_LEFT || c == LV_KEY_UP) {
-
-            if(!lv_dropdown_is_open(obj)) {
-                lv_dropdown_open(obj);
+            if(lv_dropdown_is_open(obj)) {
+                if(dropdown->sel_opt_id > 0) {
+                    dropdown->sel_opt_id--;
+                    position_to_selected(obj, LV_ANIM_ON);
+                }
+                if(indev_type == LV_INDEV_TYPE_KEYPAD) lv_event_stop_bubbling(e);
             }
-            else if(dropdown->sel_opt_id > 0) {
-                dropdown->sel_opt_id--;
-                position_to_selected(obj, LV_ANIM_ON);
+            else if(indev_type != LV_INDEV_TYPE_KEYPAD) {
+                lv_dropdown_open(obj);
             }
         }
         else if(c == LV_KEY_ESC) {
-            dropdown->sel_opt_id = dropdown->sel_opt_id_orig;
-            lv_dropdown_close(obj);
+            if(lv_dropdown_is_open(obj)) {
+                dropdown->sel_opt_id = dropdown->sel_opt_id_orig;
+                lv_dropdown_close(obj);
+                if(indev_type == LV_INDEV_TYPE_KEYPAD) lv_event_stop_bubbling(e);
+            }
         }
         else if(c == LV_KEY_ENTER) {
             /* Handle the ENTER key only if it was send by another object.
@@ -798,6 +825,7 @@ static void lv_dropdown_event(const lv_obj_class_t * class_p, lv_event_t * e)
                 res = btn_release_handler(obj);
                 if(res != LV_RESULT_OK) return;
             }
+            if(indev_type == LV_INDEV_TYPE_KEYPAD) lv_event_stop_bubbling(e);
         }
     }
     else if(code == LV_EVENT_ROTARY) {

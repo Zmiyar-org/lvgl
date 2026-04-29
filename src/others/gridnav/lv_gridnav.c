@@ -13,6 +13,7 @@
 #include "../../misc/lv_math.h"
 #include "../../indev/lv_indev.h"
 #include "../../core/lv_obj_private.h"
+#include "../../widgets/dropdown/lv_dropdown.h"
 
 /*********************
  *      DEFINES
@@ -147,6 +148,17 @@ static void gridnav_event_cb(lv_event_t * e)
         if(dsc->focused_obj == NULL) dsc->focused_obj = find_first_focusable(obj);
         if(dsc->focused_obj == NULL) {
             fallback_group_focus_by_key(obj, key);
+            return;
+        }
+
+        /* If an opened dropdown is focused, let it consume navigation/confirm/cancel keys.
+         * Otherwise gridnav moves focus away and closes the dropdown immediately. */
+        if(lv_obj_check_type(dsc->focused_obj, &lv_dropdown_class) &&
+           lv_dropdown_is_open(dsc->focused_obj) &&
+           (key == LV_KEY_RIGHT || key == LV_KEY_LEFT || key == LV_KEY_UP || key == LV_KEY_DOWN ||
+            key == LV_KEY_ENTER || key == LV_KEY_ESC)) {
+            lv_obj_send_event(dsc->focused_obj, LV_EVENT_KEY, &key);
+            lv_event_stop_bubbling(e);
             return;
         }
 
@@ -289,7 +301,10 @@ static void gridnav_event_cb(lv_event_t * e)
             /*Forward press/release related event too*/
             lv_indev_type_t t = lv_indev_get_type(lv_indev_active());
             if(t == LV_INDEV_TYPE_ENCODER || t == LV_INDEV_TYPE_KEYPAD) {
-                lv_obj_send_event(dsc->focused_obj, code, lv_indev_active());
+                lv_obj_t * target = lv_event_get_target(e);
+                if(target != dsc->focused_obj) {
+                    lv_obj_send_event(dsc->focused_obj, code, lv_indev_active());
+                }
             }
         }
     }
